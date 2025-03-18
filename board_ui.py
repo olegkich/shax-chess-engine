@@ -1,4 +1,5 @@
 import tkinter as tk
+from move_validator import MoveValidator
 
 class ChessBoard(tk.Frame):
     def __init__(self, parent, size=64):
@@ -11,7 +12,21 @@ class ChessBoard(tk.Frame):
         }
         
         # Initial setup for a chess board
-        self.board_state = [
+        self.board_state = self._initialize_board()
+        
+        self.move_validator = MoveValidator(self.board_state)
+
+        self.squares = {}
+        self.selected_square = None
+        self.selected_piece = None
+
+        self.white_to_move = True
+
+        self.draw_board()
+        self.place_pieces()
+        
+    def _initialize_board(self):
+        return [
             ["r", "n", "b", "q", "k", "b", "n", "r"],
             ["p", "p", "p", "p", "p", "p", "p", "p"],
             ["", "", "", "", "", "", "", ""],
@@ -21,13 +36,7 @@ class ChessBoard(tk.Frame):
             ["P", "P", "P", "P", "P", "P", "P", "P"],
             ["R", "N", "B", "Q", "K", "B", "N", "R"]
         ]
-        
-        self.squares = {}
-        self.selected_square = None
-        self.selected_piece = None
-        self.draw_board()
-        self.place_pieces()
-        
+
     def draw_board(self):
         """Draw the chess board with alternating colors"""
         # Light and dark square colors
@@ -69,7 +78,7 @@ class ChessBoard(tk.Frame):
         row = event.y // self.size
         
         if 0 <= row < 8 and 0 <= col < 8:
-            print(f"Square clicked: {row}, {col}")  # Debug print
+            # print(f"Square clicked: {row}, {col}")  
             self.square_clicked(row, col)
     
     def place_pieces(self):
@@ -126,13 +135,14 @@ class ChessBoard(tk.Frame):
                 self.selected_square = (row, col)
                 # Highlight selected square
                 self.highlight_square(row, col, True)
-                print(f"Selected square: {row}, {col}")  # Debug print
+                print(f"Selected square: {row}, {col}")  
+                
         else:
             from_row, from_col = self.selected_square
             
             # Move piece
             if self.move_piece(self.selected_square, (row, col)):
-                print(f"Moved piece from {self.selected_square} to {(row, col)}")
+                # print(f"Moved piece from {self.selected_square} to {(row, col)}")
                 # Update the status bar
                 turn = "Black" if self.board_state[row][col].islower() else "White"
                 self.parent.status_var.set(f"{turn}'s turn")
@@ -152,39 +162,48 @@ class ChessBoard(tk.Frame):
         self.canvas.itemconfig(square["id"], fill=new_color)
     
     def move_piece(self, from_pos, to_pos):
-        """Move a piece from one position to another"""
+        """Move a piece from one position to another."""
         from_row, from_col = from_pos
         to_row, to_col = to_pos
-        
+
         # Get the piece code
         piece_code = self.board_state[from_row][from_col]
-        
+
+        # Validation checks
         if not piece_code:
             return False  # No piece at from_pos
-        
-        # If same position, do nothing
         if from_pos == to_pos:
+            return False  # No movement
+
+        # Validate legality of the move using MoveValidator
+        if not self.move_validator.is_valid_move(from_pos, to_pos, self.white_to_move):
+            print("invalid move")
             return False
-        
-        # Clear the destination square first (if it has a piece)
+
+        # Handle capture (remove piece from target square if present)
         to_square = self.squares[(to_row, to_col)]
         if to_square["piece_id"]:
             self.canvas.delete(to_square["piece_id"])
-        
+
         # Update board state
         self.board_state[to_row][to_col] = piece_code
         self.board_state[from_row][from_col] = ""
-        
+
         # Update visuals
         self.place_piece(to_row, to_col, piece_code)
-        
+
         # Clear original square's piece
         from_square = self.squares[(from_row, from_col)]
         if from_square["piece_id"]:
             self.canvas.delete(from_square["piece_id"])
             from_square["piece_id"] = None
-        
+
+        # print('next turn')
+        # Toggle turn
+        self.white_to_move = not self.white_to_move
+
         return True
+
 
 
 class ChessGame(tk.Tk):
