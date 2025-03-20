@@ -4,23 +4,20 @@ class MoveValidator():
 
     def is_valid_move(self, from_pos, to_pos, is_white_turn):
         piece = self.board_state[from_pos[0]][from_pos[1]]
-        
-        if not piece:
-            return False  # No piece on the source square
-        
-        # Check turn (uppercase = white, lowercase = black)
-        if piece.isupper() != is_white_turn:
+
+        if not piece or (piece.isupper() != is_white_turn):
             return False
         
-        # Route validation by piece type
-        if piece.lower() == 'p':
-            return self._is_valid_pawn_move(from_pos, to_pos)
-        elif piece.lower() == 'n':
-            return self._is_valid_knight_move(from_pos, to_pos)
-        elif piece.lower() in ['q', 'b', 'r']:
-            return self._is_valid_sliding_move(from_pos, to_pos, piece)
+        move_validators = {
+            'p': self._is_valid_pawn_move,
+            'n': self._is_valid_knight_move,
+            'b': lambda f, t: self._is_valid_sliding_move(f, t, 'b'),
+            'r': lambda f, t: self._is_valid_sliding_move(f, t, 'r'),
+            'q': lambda f, t: self._is_valid_sliding_move(f, t, 'q'),
+        }
 
-        return False
+        return move_validators.get(piece.lower(), lambda *_: False)(from_pos, to_pos)
+
 
     def _is_valid_pawn_move(self, from_pos, to_pos):
         from_row, from_col = from_pos
@@ -38,29 +35,27 @@ class MoveValidator():
 
         # Capture (diagonal)
         if abs(from_col - to_col) == 1 and to_row == from_row + direction:
-            # Probably will have problems because it doesn't check which color the piece is
-            # TODO: is_capture_valid()
-            return self._is_square_occupied
+            return self._is_opponent_piece(from_pos, to_pos)
 
         return False
 
     def _is_valid_knight_move(self, from_pos, to_pos):
         row_diff = abs(from_pos[0] - to_pos[0])
         col_diff = abs(from_pos[1] - to_pos[1])
-        return (row_diff, col_diff) in [(2, 1), (1, 2)]
+
+        if (row_diff, col_diff) in [(2, 1), (1, 2)]:
+            return self._is_capture_or_empty(from_pos, to_pos)
 
     def _is_valid_sliding_move(self, from_pos, to_pos, piece):
         if piece.lower() == 'q':
-            return True
+            return self._is_valid_diagonal_move(from_pos, to_pos) or self._is_valid_orthogonal_move(from_pos, to_pos)
         if piece.lower() == 'b':
-            return self._is_diagonal_move_valid(from_pos, to_pos)
+            return self._is_valid_diagonal_move(from_pos, to_pos)
         if piece.lower() == 'r':
-            return self._is_straight_move_valid(from_pos, to_pos)
+            return self._is_valid_orthogonal_move(from_pos, to_pos)
         return False
 
-    def _is_diagonal_move_valid(self, from_pos, to_pos):
-        print("from pos: ", from_pos)
-
+    def _is_valid_diagonal_move(self, from_pos, to_pos):
         row_diff = abs(from_pos[0] - to_pos[0])
         col_diff = abs(from_pos[1] - to_pos[1])
 
@@ -72,20 +67,45 @@ class MoveValidator():
 
         row, col = from_pos
 
-        while (row != to_pos[0]) and (col != to_pos[1]):
+        while (row + x_direction != to_pos[0]) or (col + y_direction != to_pos[1]):
             row += x_direction
             col += y_direction
             
             if self._is_square_occupied(row, col):
-                print(f"Square at {row},{col} is occupied.")
                 return False
 
-        if self._is_square_occupied(row, col):
-            return self._is_opponent_piece(row, col)
-        
-        return True
-            
-        
+        return self._is_capture_or_empty(from_pos, to_pos)
+    
+    def _is_valid_orthogonal_move(self, from_pos, to_pos):
+        row_diff = abs(from_pos[0] - to_pos[0])
+        col_diff = abs(from_pos[1] - to_pos[1])
+
+        # Ensure the move is either horizontal or vertical
+        if row_diff != 0 and col_diff != 0:
+            return False
+
+        # Determine the direction of movement
+        x_direction = 1 if to_pos[0] > from_pos[0] else -1 if to_pos[0] < from_pos[0] else 0
+        y_direction = 1 if to_pos[1] > from_pos[1] else -1 if to_pos[1] < from_pos[1] else 0
+
+        row, col = from_pos
+
+        # Move in the direction until reaching the destination
+        while (row, col) != to_pos:
+            row += x_direction
+            col += y_direction
+
+            # If not at the destination and the square is occupied, the path is blocked
+            if (row, col) != to_pos and self._is_square_occupied(row, col):
+                return False
+
+        # Check if the destination square is empty or holds an opponent's piece
+        return self._is_capture_or_empty(from_pos, to_pos)
+
+    # when moving to a square returns true if square is empty or it's a valid capture
+    def _is_capture_or_empty(self, from_pos, to_pos):
+        return (self._is_square_occupied(to_pos[0], to_pos[1]) and self._is_opponent_piece(from_pos, to_pos)) \
+                or not self._is_square_occupied(to_pos[0], to_pos[1])
 
     def _is_square_occupied(self, row, col):
         # Ensure the indices are within the bounds of the board
@@ -93,8 +113,9 @@ class MoveValidator():
             return self.board_state[row][col] != ""
         return True  # If out of bounds, treat as occupied (invalid)
 
-    def _is_opponent_piece(self, row, col):
-        
-        piece = self.board_state[row][col]
-        return (piece.islower() and self.board_state[row][col].isupper()) or \
-            (piece.isupper() and self.board_state[row][col].islower())
+    def _is_opponent_piece(self, from_pos, to_pos):
+        piece_to_move = self.board_state[from_pos[0]][from_pos[1]]
+        piece_to_be_captured = self.board_state[to_pos[0]][to_pos[1]]
+
+        return (piece_to_move.islower() and piece_to_be_captured.isupper()) or \
+            (piece_to_move.isupper() and piece_to_be_captured.islower())
