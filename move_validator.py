@@ -60,20 +60,14 @@ class MoveValidator():
         from_row, from_col = from_pos
         to_row, to_col = to_pos
 
-        # is the move one square in any direction
-        is_valid_horizontal_king_move = from_row == to_row + 1 or from_row == to_row - 1
-        is_valid_vertical_king_move = from_col == to_col + 1 or from_col == to_col - 1
+        row_diff = abs(from_row - to_row)
+        col_diff = abs(from_col - to_col)
 
-        if from_row == to_row and is_valid_vertical_king_move:
+        if (row_diff <= 1 and col_diff <= 1) and (row_diff != 0 or col_diff != 0):
             return self._is_capture_or_empty(from_pos, to_pos)
         
-        if from_col == to_col and is_valid_horizontal_king_move:
-            return self._is_capture_or_empty(from_pos, to_pos)
-        
-        if is_valid_vertical_king_move and is_valid_horizontal_king_move:
-            return self._is_capture_or_empty(from_pos, to_pos)
-            
         return False
+
 
     def _is_valid_diagonal_move(self, from_pos, to_pos):
         row_diff = abs(from_pos[0] - to_pos[0])
