@@ -14,6 +14,7 @@ class MoveValidator():
             'b': lambda f, t: self._is_valid_sliding_move(f, t, 'b'),
             'r': lambda f, t: self._is_valid_sliding_move(f, t, 'r'),
             'q': lambda f, t: self._is_valid_sliding_move(f, t, 'q'),
+            'k': self._is_valid_king_move
         }
 
         return move_validators.get(piece.lower(), lambda *_: False)(from_pos, to_pos)
@@ -53,6 +54,25 @@ class MoveValidator():
             return self._is_valid_diagonal_move(from_pos, to_pos)
         if piece.lower() == 'r':
             return self._is_valid_orthogonal_move(from_pos, to_pos)
+        return False
+
+    def _is_valid_king_move(self, from_pos, to_pos):
+        from_row, from_col = from_pos
+        to_row, to_col = to_pos
+
+        # is the move one square in any direction
+        is_valid_horizontal_king_move = from_row == to_row + 1 or from_row == to_row - 1
+        is_valid_vertical_king_move = from_col == to_col + 1 or from_col == to_col - 1
+
+        if from_row == to_row and is_valid_vertical_king_move:
+            return self._is_capture_or_empty(from_pos, to_pos)
+        
+        if from_col == to_col and is_valid_horizontal_king_move:
+            return self._is_capture_or_empty(from_pos, to_pos)
+        
+        if is_valid_vertical_king_move and is_valid_horizontal_king_move:
+            return self._is_capture_or_empty(from_pos, to_pos)
+            
         return False
 
     def _is_valid_diagonal_move(self, from_pos, to_pos):
